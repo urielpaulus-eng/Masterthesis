@@ -1,5 +1,14 @@
 from __future__ import print_function, absolute_import, division    #makes KratosMultiphysics backward compatible with python 2.6 and 2.7
 
+from config_hbv import (
+    GEOMETRY,
+    MATERIAL_TIMBER,
+    MATERIAL_CONCRETE,
+    MATERIAL_KERVE,
+    SUPPORT,
+    LOADCASE,
+)
+
 '''Timber Engineering - KratosMultiphysics'''
 # Help for Data_Structure: Kratos/docs/pages/Kratos/For_Users/Crash_course/Data_Structure
 # Good example: Kratos/applications/StructuralMechanicsApplication/tests/test_prebuckling_analysis.py
@@ -41,16 +50,19 @@ from def_plot import plot_data_2D
 #
 
 'Input'
-l = 10800               # length [mm]
-b = 600                 # b = width [mm]
-h = 0                   # h = heigth [mm]
-n_element_x = 72         # n_element_x = number of elements over length (only even numbers possible)
-n_element_y = 10         # n_element_y = number of elements over width (only even numbers possible)
-n_element_z = 0         # n_element_z = number of elements over heigth
+l = GEOMETRY["length"]
+b = GEOMETRY["width"]
+h = GEOMETRY["height"]
+n_element_x = GEOMETRY["n_el_x"]
+n_element_y = GEOMETRY["n_el_y"]
+n_element_z = GEOMETRY["n_el_z"]
+
+print("Länge aus Config", 1)
 
 'Dataframe with nodes and elements'
 df_nodes, df_nodes_xyz, df_nodes_number = define_nodes(l,b,h,n_element_x,n_element_y,n_element_z)
 df_elements, df_elements_number = define_quadrilateralN4(n_element_x,n_element_y,n_element_z)
+
 
 ####################################################################################################
 'First part: Define function for setup the numerical model - Pre-processing'
@@ -89,16 +101,45 @@ def variables(model_part_structure):
     model_part_structure.AddNodalSolutionStepVariable(KratosMultiphysics.StructuralMechanicsApplication.SURFACE_LOAD)
     model_part_structure.AddNodalSolutionStepVariable(KratosMultiphysics.VOLUME_ACCELERATION)
 
-'Material and Constitutive Law'
 def material(model_part_structure):
-    # Define Material to ModelPart
-    model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.DENSITY,0)
-    model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.YOUNG_MODULUS,14400)        # GetProperties()[X] is used to save variables and data in a model part
-    model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.SHEAR_MODULUS,900)
-    model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.POISSON_RATIO,0.3)
-    model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.THICKNESS,100.0)
+    """Definiert die Material-Properties für Holz, Beton, Kerve.
 
-    constitutive_law = KratosMultiphysics.StructuralMechanicsApplication.LinearElasticPlaneStrain2DLaw()
+    Aktuell nutzen die Elemente noch NUR Properties[1] (Holz).
+    Beton und Kerve sind vorbereitet fürs spätere HBV-Modell.
+    """
+
+    # --- Holz (Properties[1]) ---
+    props_timber = model_part_structure.GetProperties()[1]
+    props_timber.SetValue(KratosMultiphysics.DENSITY,       MATERIAL_TIMBER["density"])
+    props_timber.SetValue(KratosMultiphysics.YOUNG_MODULUS, MATERIAL_TIMBER["E"])
+    props_timber.SetValue(KratosMultiphysics.SHEAR_MODULUS, MATERIAL_TIMBER["G"])
+    props_timber.SetValue(KratosMultiphysics.POISSON_RATIO, MATERIAL_TIMBER["nu"])
+    props_timber.SetValue(KratosMultiphysics.THICKNESS,     MATERIAL_TIMBER["thickness"])
+
+    timber_law = KratosMultiphysics.StructuralMechanicsApplication.LinearElasticPlaneStrain2DLaw()
+    props_timber.SetValue(KratosMultiphysics.CONSTITUTIVE_LAW, timber_law)
+
+    # --- Beton (Properties[2]) ---
+    props_concrete = model_part_structure.GetProperties()[2]
+    props_concrete.SetValue(KratosMultiphysics.DENSITY,       MATERIAL_CONCRETE["density"])
+    props_concrete.SetValue(KratosMultiphysics.YOUNG_MODULUS, MATERIAL_CONCRETE["E"])
+    props_concrete.SetValue(KratosMultiphysics.SHEAR_MODULUS, MATERIAL_CONCRETE["G"])
+    props_concrete.SetValue(KratosMultiphysics.POISSON_RATIO, MATERIAL_CONCRETE["nu"])
+    props_concrete.SetValue(KratosMultiphysics.THICKNESS,     MATERIAL_CONCRETE["thickness"])
+
+    concrete_law = KratosMultiphysics.StructuralMechanicsApplication.LinearElasticPlaneStrain2DLaw()
+    props_concrete.SetValue(KratosMultiphysics.CONSTITUTIVE_LAW, concrete_law)
+
+    # --- Kerve (Properties[3]) ---
+    props_kerve = model_part_structure.GetProperties()[3]
+    props_kerve.SetValue(KratosMultiphysics.DENSITY,       MATERIAL_KERVE["density"])
+    props_kerve.SetValue(KratosMultiphysics.YOUNG_MODULUS, MATERIAL_KERVE["E"])
+    props_kerve.SetValue(KratosMultiphysics.SHEAR_MODULUS, MATERIAL_KERVE["G"])
+    props_kerve.SetValue(KratosMultiphysics.POISSON_RATIO, MATERIAL_KERVE["nu"])
+    props_kerve.SetValue(KratosMultiphysics.THICKNESS,     MATERIAL_KERVE["thickness"])
+
+    kerve_law = KratosMultiphysics.StructuralMechanicsApplication.LinearElasticPlaneStrain2DLaw()
+    props_kerve.SetValue(KratosMultiphysics.CONSTITUTIVE_LAW, kerve_law)
 
     # Plastification Variant 1 (not working)
     # model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.DENSITY,0)
@@ -119,30 +160,137 @@ def material(model_part_structure):
     # constitutive_law = KratosMultiphysics.KratosGlobals.GetConstitutiveLaw("SmallStrainDplusDminusDamageRankineRankine2D").Clone()
     # constitutive_law = KratosMultiphysics.KratosGlobals.GetConstitutiveLaw("SmallStrainDplusDminusDamageVonMisesVonMises2D").Clone()
 
+def classify_elements_with_kerve(df_nodes, df_elements):
+    """Gibt df_elements mit Spalte 'region' zurück:
+    'TIMBER', 'CONCRETE' oder 'KERVE' (Beton in der Kerve).
+    """
 
-    
-    # Define Constitutive Law to ModelPart
-    model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.CONSTITUTIVE_LAW,constitutive_law)
+    d_n = GEOMETRY["kerven_tiefe_dn"]
+    l_n = GEOMETRY["kerven_laenge_ln"]
+    l_v = GEOMETRY["vorholz_laenge_lv"]
+
+    x_start = l_v
+    x_end   = l_v + l_n
+    y_top   = 0.0        # Fuge Beton/Holz
+    y_bot   = -d_n       # Unterkante Kerve (im Holz)
+
+    # Nachschlage-Tabelle: Node-ID -> (x, y)
+    node_pos = df_nodes.set_index("node")[["x", "y"]]
+
+    regions = []
+
+    for _, el in df_elements.iterrows():
+        node_ids = [el["n_0"], el["n_1"], el["n_2"], el["n_3"]]
+        coords = node_pos.loc[node_ids]
+
+        x_c = float(coords["x"].mean())
+        y_c = float(coords["y"].mean())
+
+        # Oberhalb Fuge -> Betonplatte
+        if y_c > y_top:
+            regions.append("CONCRETE")
+            continue
+
+        # Innerhalb Kervrechteck -> Kerve-Beton
+        if (x_start <= x_c <= x_end) and (y_bot <= y_c <= y_top):
+            regions.append("KERVE")
+            continue
+
+        # Rest -> Holz
+        regions.append("TIMBER")
+
+    df_out = df_elements.copy()
+    df_out["region"] = regions
+    return df_out
+
+df_elements = classify_elements_with_kerve(df_nodes, df_elements)
 
 'Geometry (Nodes and Elements) and DOFs'
-def geometry_DOF(model_part_structure,df_nodes,df_elements):
-    # Create Nodes in ModelPart
-    for i in range(df_nodes.shape[0]):   
-        model_part_structure.CreateNewNode(int(df_nodes["node"][i]),df_nodes["x"][i],df_nodes["y"][i],df_nodes["z"][i])
-    # Output in Terminal of Nodes in ModelPart
-    # for node in model_part_structure.Nodes:
-    #     print(node.Id, node.X, node.Y, node.Z)
-    # Create Elements in ModelPart
-    for i in range(df_elements.shape[0]):   
-        model_part_structure.CreateNewElement("SmallDisplacementElement2D4N",int(df_elements["element"][i]),[df_elements["n_0"][i],df_elements["n_1"][i],df_elements["n_2"][i],df_elements["n_3"][i]],model_part_structure.GetProperties()[1])
-    # Output in Terminal of Nodes in ModelPart
-    # for element in model_part_structure.Elements:
-    #     print(element.Id,element.Properties.Id,element.GetNode(0).Id,element.GetNode(1).Id,element.GetNode(2).Id,element.GetNode(3).Id)
-    # Define DOFs to ModelPart
-    KratosMultiphysics.VariableUtils().AddDof(KratosMultiphysics.DISPLACEMENT_X, KratosMultiphysics.REACTION_X, model_part_structure)
-    KratosMultiphysics.VariableUtils().AddDof(KratosMultiphysics.DISPLACEMENT_Y, KratosMultiphysics.REACTION_Y, model_part_structure)
-    KratosMultiphysics.VariableUtils().AddDof(KratosMultiphysics.DISPLACEMENT_Z, KratosMultiphysics.REACTION_Z, model_part_structure)
-    KratosMultiphysics.VariableUtils().AddDof(KratosMultiphysics.StructuralMechanicsApplication.LOAD_FACTOR, KratosMultiphysics.StructuralMechanicsApplication.PRESCRIBED_DISPLACEMENT, model_part_structure)
+def geometry_DOF(model_part_structure, df_nodes, df_elements):
+    # --- 1. Nodes im ModelPart anlegen ---
+    for i in range(df_nodes.shape[0]):
+        model_part_structure.CreateNewNode(
+            int(df_nodes["node"][i]),
+            df_nodes["x"][i],
+            df_nodes["y"][i],
+            df_nodes["z"][i],
+        )
+
+    # --- 2. Material-SubModelParts anlegen ---
+    mp_timber   = model_part_structure.CreateSubModelPart("TIMBER")
+    mp_concrete = model_part_structure.CreateSubModelPart("CONCRETE")
+    mp_kerve    = model_part_structure.CreateSubModelPart("KERVE")
+
+    # Sets zum Sammeln der Knoten je Materialbereich
+    nodes_timber   = set()
+    nodes_concrete = set()
+    nodes_kerve    = set()
+
+    # --- 3. Elemente anlegen, Properties nach 'region' wählen ---
+    for _, row in df_elements.iterrows():
+        e_id     = int(row["element"])
+        node_ids = [row["n_0"], row["n_1"], row["n_2"], row["n_3"]]
+        region   = row.get("region", "TIMBER")  # falls Spalte fehlt → Holz
+
+        if region == "TIMBER":
+            props = model_part_structure.GetProperties()[1]   # Holz
+            submp = mp_timber
+            nodes_timber.update(node_ids)
+
+        elif region == "CONCRETE":
+            props = model_part_structure.GetProperties()[2]   # Beton
+            submp = mp_concrete
+            nodes_concrete.update(node_ids)
+
+        elif region == "KERVE":
+            # Kerve ist mit Beton gefüllt → gleiche Properties wie Beton
+            props = model_part_structure.GetProperties()[2]   # Beton
+            submp = mp_kerve
+            nodes_kerve.update(node_ids)
+
+        else:
+            # Fallback: behandle unbekannte Region als Holz
+            props = model_part_structure.GetProperties()[1]
+            submp = mp_timber
+            nodes_timber.update(node_ids)
+
+        new_el = model_part_structure.CreateNewElement(
+            "SmallDisplacementElement2D4N",
+            e_id,
+            node_ids,
+            props,
+        )
+        submp.AddElement(new_el.Id)
+
+    # --- 4. Knoten den SubModelParts zuordnen ---
+    if nodes_timber:
+        mp_timber.AddNodes(list(nodes_timber))
+    if nodes_concrete:
+        mp_concrete.AddNodes(list(nodes_concrete))
+    if nodes_kerve:
+        mp_kerve.AddNodes(list(nodes_kerve))
+
+    # --- 5. DOFs definieren (wie bisher auf dem Haupt-ModelPart) ---
+    KratosMultiphysics.VariableUtils().AddDof(
+        KratosMultiphysics.DISPLACEMENT_X,
+        KratosMultiphysics.REACTION_X,
+        model_part_structure,
+    )
+    KratosMultiphysics.VariableUtils().AddDof(
+        KratosMultiphysics.DISPLACEMENT_Y,
+        KratosMultiphysics.REACTION_Y,
+        model_part_structure,
+    )
+    KratosMultiphysics.VariableUtils().AddDof(
+        KratosMultiphysics.DISPLACEMENT_Z,
+        KratosMultiphysics.REACTION_Z,
+        model_part_structure,
+    )
+    KratosMultiphysics.VariableUtils().AddDof(
+        KratosMultiphysics.StructuralMechanicsApplication.LOAD_FACTOR,
+        KratosMultiphysics.StructuralMechanicsApplication.PRESCRIBED_DISPLACEMENT,
+        model_part_structure,
+    )
 
 'Boundary Condition - Support'
 # Define boundary conditions for supports - single-span beam
@@ -362,21 +510,19 @@ def apply_output_SRQ(model_part_structure):
 ####################################################################################################
 
 'Define steps'
-# Running step (for one calculation: step = 0)
 step = 0
-# Number of steps (for one calculation: end_step = 1)
-end_step = 1
+end_step = LOADCASE["n_steps"]
+
 'Boundary Condition - Support'
-# Choose support: boundary_condition_support = "single_span_beam" or boundary_condition_support = "beam_compression_tension"
-boundary_condition_support = "single_span_beam"
+boundary_condition_support = SUPPORT["type"]
+
 'Define load'
-# Choose loadcase: boundary_condition_load = "lc1" or boundary_condition_load = "lc2" or boundary_condition_load = "lc3"
-boundary_condition_load = "lc1"
-# Choose load_application: load_application = "deformation_controlled" in [mm] or load_application = "force_controlled" in [N]
-load_application = "deformation_controlled"
-load_max = 140
-load_min = load_max/end_step
-load_step = np.linspace(load_min,load_max,end_step)
+boundary_condition_load = LOADCASE["case"]
+load_application = LOADCASE["application"]
+load_max = LOADCASE["max_value"]
+load_min = load_max / end_step
+load_step = np.linspace(load_min, load_max, end_step)
+
 'Setup Model'
 # Model and Modelparts
 model, model_part_structure, boundary_condition_support_model_part_structure, boundary_condition_load_model_part_structure, boundary_condition_load_lc1_model_part_structure, boundary_condition_load_lc2_model_part_structure, boundary_condition_load_lc3_model_part_structure = model_modelpart()
@@ -451,3 +597,4 @@ plot_data_2D('Stress Distribution',df_node_midspan_PK2_stress_xyz['stress_x'],df
 # Output elements for evaluation
 elements_id_mid_span = [n_element_y/2*(n_element_x-1) + i for i in range(n_element_y)]
 # print(elements_id_mid_span)
+
