@@ -8,19 +8,30 @@ ohne im eigentlichen FE-Skript zu suchen.
 
 # Geometrie in mm und Elementanzahlen
 GEOMETRY = {
-    "length": 5000.0,    #mm
-    "width": 600.0,      # mm
-    "height": 0.0,       # mm (2D-Modell, also 0)
-    "n_el_x": 72,        # Elemente über die Länge
-    "n_el_y": 10,        # Elemente über die Breite
-    "n_el_z": 0,         # Elemente über die Höhe (0 = 2D)
+    # Basisgeometrie
+    "l": 3000.0,     # Balkenlänge in x-Richtung [mm]
+    "b": 300.0,      # Gesamtbauhöhe in y-Richtung (Holz + Beton) [mm]
+    "h": 0.0,        # Dicke in z-Richtung (2D-Modell → 0) [mm]
 
-     # --- Kerve-Geometrie (2D) ---
-    "kerven_tiefe_dn": 60.0,       # Kerventiefe d_n [mm] (nach unten in Holz)
-    "kerven_laenge_ln": 200.0,     # Kervenlänge l_n [mm] (in x-Richtung)
-    "vorholz_laenge_lv": 500.0,    # Vorholzlänge l_v [mm] (Abstand von linkem Auflager)
-    "kerven_winkel_deg": 90.0,     # Kervenflanken-Winkel α_n [°], erstmal 90°
+    # Aufteilung der Gesamtbauhöhe b
+    "b_timber": 220.0,   # Holzdicke (unterer Teil) [mm]
+    "b_concrete": 80.0,  # Betondicke (oberer Teil) [mm]
+
+      # Diskretisierung
+    "n_el_x": 72,
+    "n_el_y": 8,
+    "n_el_z": 0,
+
+    # Kervengeometrie
+    "kerf_depth": 60.0,         # Kerventiefe d_n [mm]
+    "kerf_length": 400.0,       # Kervenlänge l_n [mm]
+    "lv": 500.0,                # Vorholzlänge l_v [mm]
+    "kerf_angle_deg": 90.0,     # Kervenflanken-Winkel α_n [°]
 }
+
+assert abs(GEOMETRY["b_timber"] + GEOMETRY["b_concrete"] - GEOMETRY["b"]) < 1e-6, \
+    "b_timber + b_concrete stimmt nicht mit Gesamt-b überein!"
+
 
 # Materialparameter Holz (aktuell wie im Betreuer-Code)
 MATERIAL_TIMBER = {
@@ -58,15 +69,17 @@ SUPPORT = {
 
 # Lastfall-Einstellungen
 LOADCASE = {
-    # "lc1" (4-Punkt-Biegung), "lc2" (Zug/Druck), "lc3" (Einzellast)
-    "case": "lc1",
+    # "lc1" = 4-Punkt-Biegung
+    # "lc2" = Zug/Druck
+    # "lc3" = Einzellast
+    # NEU: "lc4" = gleichmäßige Linienlast (z.B. Eigengewicht)
+    "case": "lc4",
 
-    # "deformation_controlled" (Weg vorgeben) oder "force_controlled" (Kraft vorgeben)
-    "application": "deformation_controlled",
+    # hier interpretieren wir max_value als Linienlast q_y [N/mm]
+    # Beispiel: -0.03 N/mm entspricht -30 N/m (wenn mm als Einheit verwendet)
+    "application": "force_controlled",  # für lc4 wird application nicht benutzt
+    "max_value": -900.0,                 # negativ = nach unten
 
-    # Maximalwert (mm oder N, je nach application)
-    "max_value": 140.0,
-
-    # Anzahl der Schritte (1 = so wie jetzt)
-    "n_steps": 1,
+    "n_steps": 1,  # am Anfang gerne 1 lassen
 }
+

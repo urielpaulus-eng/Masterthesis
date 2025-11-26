@@ -58,40 +58,53 @@ def  define_nodes(l,b,h,n_element_x,n_element_y,n_element_z):  # def = Definiere
         list_nodes_x.append(dict_nodes_x)  # Füge zur Liste hinzu
 
     # y - layer
-    list_nodes_y = []  # Erstelle leere Liste für y-Knoten
-    n_nodes_y = n_element_y+1  # Rechne Anzahl Knoten
-    if n_element_y == 0:  # Wenn keine Elemente in y-Richtung
-        b_element_y = 0  # = bedeutet "Zuweisung" (speichere Wert in Variable)
-    else:  # Sonst
-        b_element_y = b/n_element_y  # Teile Breite durch Anzahl Elemente
-    if n_element_y % 2 == 0:  # % = Modulo (Rest bei Division); Prüfe ob gerade Zahl
-        dict_nodes_y = {}  # Erstelle leeres Dictionary
-        dict_nodes_y.update({'layer_y':float(250), 'y':float(0)})  # Füge Mittelknoten hinzu
-        list_nodes_y.append(dict_nodes_y)  # Füge zur Liste hinzu
-        for i in range(int((n_nodes_y-1)/2)):  # Schleife für halbe Anzahl Knoten
-            layer_y_1 = 251 + i  # Berechne layer-Nummer (über Mitte)
-            y_1 = b_element_y + i*b_element_y  # Berechne Position (über Mitte)
-            dict_nodes_y = {}  # Neues Dictionary
-            dict_nodes_y.update({'layer_y':layer_y_1, 'y':y_1})  # Speichere Werte
-            list_nodes_y.append(dict_nodes_y)  # Füge hinzu
-            layer_y_2 = 249 - i  # Berechne layer-Nummer (unter Mitte); - = Subtraktion
-            y_2 = -(b_element_y + i*b_element_y)  # Negative Position (unter Mitte)
-            dict_nodes_y = {}  # Neues Dictionary
-            dict_nodes_y.update({'layer_y':layer_y_2, 'y':y_2})  # Speichere Werte
-            list_nodes_y.append(dict_nodes_y)  # Füge hinzu
-            
-    elif n_element_y % 2 != 0:  # elif = Sonst wenn; != bedeutet "ist ungleich" (ungerade Zahl)
-        for i in range(int((n_nodes_y-1)/2+0.5)):  # Schleife für ungerade Anzahl
-            layer_y_1 = 251 + i  # Layer über Mitte
-            y_1 = b_element_y/2 + i*b_element_y  # Position über Mitte (Start bei halber Elementlänge)
-            dict_nodes_y = {}  # Neues Dictionary
-            dict_nodes_y.update({'layer_y':layer_y_1, 'y':y_1})  # Speichere Werte
-            list_nodes_y.append(dict_nodes_y)  # Füge hinzu
-            layer_y_2 = 249 - i  # Layer unter Mitte
-            y_2 = -(b_element_y/2 + i*b_element_y)  # Negative Position unter Mitte
-            dict_nodes_y = {}  # Neues Dictionary
-            dict_nodes_y.update({'layer_y':layer_y_2, 'y':y_2})  # Speichere Werte
-            list_nodes_y.append(dict_nodes_y)  # Füge hinzu
+    list_nodes_y = []                      # Erstelle leere Liste für y-Knoten
+    n_nodes_y = n_element_y + 1            # Anzahl Knoten in y-Richtung
+
+    if n_element_y == 0:
+        b_element_y = 0
+    else:
+        b_element_y = b / n_element_y      # Elementhöhe (b über n_el_y)
+
+    if n_element_y % 2 == 0:
+        # gerade Anzahl Elemente → Knoten genau in der Mitte bei y = 0
+        dict_nodes_y = {}
+        dict_nodes_y.update({'layer_y': float(250), 'y': float(0)})
+        list_nodes_y.append(dict_nodes_y)
+
+        for i in range(int((n_nodes_y - 1) / 2)):
+            # oberhalb der Mitte
+            layer_y_1 = 251 + i
+            y_1 = b_element_y + i * b_element_y
+            dict_nodes_y = {}
+            dict_nodes_y.update({'layer_y': layer_y_1, 'y': y_1})
+            list_nodes_y.append(dict_nodes_y)
+
+            # unterhalb der Mitte
+            layer_y_2 = 249 - i
+            y_2 = -(b_element_y + i * b_element_y)
+            dict_nodes_y = {}
+            dict_nodes_y.update({'layer_y': layer_y_2, 'y': y_2})
+            list_nodes_y.append(dict_nodes_y)
+
+    elif n_element_y % 2 != 0:
+        # ungerade Anzahl Elemente → kein Knoten genau bei y = 0,
+        # erster Knoten im Abstand b_element_y/2 von der Mitte
+        for i in range(int((n_nodes_y - 1) / 2 + 0.5)):
+            # oberhalb der Mitte
+            layer_y_1 = 251 + i
+            y_1 = b_element_y / 2 + i * b_element_y
+            dict_nodes_y = {}
+            dict_nodes_y.update({'layer_y': layer_y_1, 'y': y_1})
+            list_nodes_y.append(dict_nodes_y)
+
+            # unterhalb der Mitte
+            layer_y_2 = 249 - i
+            y_2 = -(b_element_y / 2 + i * b_element_y)
+            dict_nodes_y = {}
+            dict_nodes_y.update({'layer_y': layer_y_2, 'y': y_2})
+            list_nodes_y.append(dict_nodes_y)
+
 
     # z - layer   
     list_nodes_z = []  # Erstelle leere Liste für z-Knoten

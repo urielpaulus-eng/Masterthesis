@@ -50,14 +50,16 @@ from def_plot import plot_data_2D
 #
 
 'Input'
-l = GEOMETRY["length"]
-b = GEOMETRY["width"]
-h = GEOMETRY["height"]
+
+'Input'
+l = GEOMETRY["l"]
+b = GEOMETRY["b"]   # Gesamtbauhöhe in y-Richtung (Holz + Beton)
+h = GEOMETRY["h"]   # Dicke in z-Richtung (2D: 0)
+
 n_element_x = GEOMETRY["n_el_x"]
 n_element_y = GEOMETRY["n_el_y"]
 n_element_z = GEOMETRY["n_el_z"]
 
-print("Länge aus Config", 1)
 
 'Dataframe with nodes and elements'
 df_nodes, df_nodes_xyz, df_nodes_number = define_nodes(l,b,h,n_element_x,n_element_y,n_element_z)
@@ -70,22 +72,29 @@ df_elements, df_elements_number = define_quadrilateralN4(n_element_x,n_element_y
 
 'Model and Modelparts'
 def model_modelpart():
-    # Create Model
     model = KratosMultiphysics.Model()
-    # Create Modelpart "model_part_structure"
     model_part_structure = model.CreateModelPart("model_part_structure")
     model_part_structure.SetBufferSize(2)
-    # Create SubModelPart "boundary_condition_support_model_part_structure"
+
     boundary_condition_support_model_part_structure = model_part_structure.CreateSubModelPart("boundary_condition_support_model_part_structure")
-    # Create SubModelPart "boundary_condition_load_model_part_structure"
     boundary_condition_load_model_part_structure = model_part_structure.CreateSubModelPart("boundary_condition_load_model_part_structure")
-    # Create SubModelPart "boundary_condition_load_lc1_part_structure"
+
     boundary_condition_load_lc1_model_part_structure = boundary_condition_load_model_part_structure.CreateSubModelPart("boundary_condition_load_lc1_model_part_structure")
-    # Create SubModelPart "boundary_condition_load_lc2_part_structure"
     boundary_condition_load_lc2_model_part_structure = boundary_condition_load_model_part_structure.CreateSubModelPart("boundary_condition_load_lc2_model_part_structure")
-    # Create SubModelPart "boundary_condition_load_lc3_part_structure"
     boundary_condition_load_lc3_model_part_structure = boundary_condition_load_model_part_structure.CreateSubModelPart("boundary_condition_load_lc3_model_part_structure")
-    return model, model_part_structure, boundary_condition_support_model_part_structure, boundary_condition_load_model_part_structure, boundary_condition_load_lc1_model_part_structure, boundary_condition_load_lc2_model_part_structure, boundary_condition_load_lc3_model_part_structure
+    # NEU:
+    boundary_condition_load_lc4_model_part_structure = boundary_condition_load_model_part_structure.CreateSubModelPart("boundary_condition_load_lc4_model_part_structure")
+
+    return (
+        model,
+        model_part_structure,
+        boundary_condition_support_model_part_structure,
+        boundary_condition_load_model_part_structure,
+        boundary_condition_load_lc1_model_part_structure,
+        boundary_condition_load_lc2_model_part_structure,
+        boundary_condition_load_lc3_model_part_structure,
+        boundary_condition_load_lc4_model_part_structure,  # NEU im Return
+    )
 
 'Variables'
 def variables(model_part_structure):
@@ -165,9 +174,9 @@ def classify_elements_with_kerve(df_nodes, df_elements):
     'TIMBER', 'CONCRETE' oder 'KERVE' (Beton in der Kerve).
     """
 
-    d_n = GEOMETRY["kerven_tiefe_dn"]
-    l_n = GEOMETRY["kerven_laenge_ln"]
-    l_v = GEOMETRY["vorholz_laenge_lv"]
+    d_n = GEOMETRY["kerf_depth"]
+    l_n = GEOMETRY["kerf_length"]
+    l_v = GEOMETRY["lv"]
 
     x_start = l_v
     x_end   = l_v + l_n
@@ -205,7 +214,6 @@ def classify_elements_with_kerve(df_nodes, df_elements):
 
 df_elements = classify_elements_with_kerve(df_nodes, df_elements)
 
-'Geometry (Nodes and Elements) and DOFs'
 def geometry_DOF(model_part_structure, df_nodes, df_elements):
     # --- 1. Nodes im ModelPart anlegen ---
     for i in range(df_nodes.shape[0]):
@@ -221,7 +229,6 @@ def geometry_DOF(model_part_structure, df_nodes, df_elements):
     mp_concrete = model_part_structure.CreateSubModelPart("CONCRETE")
     mp_kerve    = model_part_structure.CreateSubModelPart("KERVE")
 
-    # Sets zum Sammeln der Knoten je Materialbereich
     nodes_timber   = set()
     nodes_concrete = set()
     nodes_kerve    = set()
@@ -230,37 +237,45 @@ def geometry_DOF(model_part_structure, df_nodes, df_elements):
     for _, row in df_elements.iterrows():
         e_id     = int(row["element"])
         node_ids = [row["n_0"], row["n_1"], row["n_2"], row["n_3"]]
-        region   = row.get("region", "TIMBER")  # falls Spalte fehlt → Holz
+        region   = row.get("region", "TIMBER")
 
         if region == "TIMBER":
-            props = model_part_structure.GetProperties()[1]   # Holz
-            submp = mp_timber
-            nodes_timber.update(node_ids)
-
-        elif region == "CONCRETE":
-            props = model_part_structure.GetProperties()[2]   # Beton
-            submp = mp_concrete
-            nodes_concrete.update(node_ids)
-
-        elif region == "KERVE":
-            # Kerve ist mit Beton gefüllt → gleiche Properties wie Beton
-            props = model_part_structure.GetProperties()[2]   # Beton
-            submp = mp_kerve
-            nodes_kerve.update(node_ids)
-
-        else:
-            # Fallback: behandle unbekannte Region als Holz
             props = model_part_structure.GetProperties()[1]
             submp = mp_timber
             nodes_timber.update(node_ids)
 
+        elif region == "CONCRETE":
+            props = model_part_structure.GetProperties()[2]
+            submp = mp_concrete
+            nodes_concrete.update(node_ids)
+
+        elif region == "KERVE":
+            props = model_part_structure.GetProperties()[3]
+            submp = mp_kerve
+            nodes_kerve.update(node_ids)
+
+        else:
+            props = model_part_structure.GetProperties()[1]
+            submp = mp_timber
+            nodes_timber.update(node_ids)
+
+        # >>> diese beiden Zeilen MÜSSEN innerhalb der for-Schleife sein <<<
         new_el = model_part_structure.CreateNewElement(
             "SmallDisplacementElement2D4N",
             e_id,
             node_ids,
             props,
         )
-        submp.AddElement(new_el.Id)
+        submp.AddElement(new_el)      # Element-Objekt, nicht new_el.Id
+
+    # --- 4. Knoten den SubModelParts zuordnen ---
+    if nodes_timber:
+        mp_timber.AddNodes(list(nodes_timber))
+    if nodes_concrete:
+        mp_concrete.AddNodes(list(nodes_concrete))
+    if nodes_kerve:
+        mp_kerve.AddNodes(list(nodes_kerve))
+
 
     # --- 4. Knoten den SubModelParts zuordnen ---
     if nodes_timber:
@@ -326,7 +341,10 @@ def boundary_condition_support_beam_compression_tension(boundary_condition_suppo
     KratosMultiphysics.VariableUtils().ApplyFixity(KratosMultiphysics.DISPLACEMENT_Y, True, boundary_condition_fixed_support_model_part_structure.Nodes)
     KratosMultiphysics.VariableUtils().ApplyFixity(KratosMultiphysics.DISPLACEMENT_Z, True, boundary_condition_fixed_support_model_part_structure.Nodes)
 
+
 'Boundary Condition - Load'
+
+
 # Define boundary conditions for load - loadcase 1 (lc1), 4-point-bending
 def boundary_condition_load_lc1(model_part_structure,boundary_condition_load_lc1_model_part_structure,load_application,step,load_X,load_Y,load_Z):
     # Define nodes for loadcase 1 (lc1)
@@ -351,6 +369,7 @@ def boundary_condition_load_lc1(model_part_structure,boundary_condition_load_lc1
             }}
             """))
             condition_load_model_part_structure.ExecuteInitializeSolutionStep()
+
 
 # Define boundary conditions for load - loadcase 2 (lc2), compression/tension load
 def boundary_condition_load_lc2(model_part_structure,boundary_condition_load_lc2_model_part_structure,step,load_X,load_Y,load_Z):
@@ -379,6 +398,7 @@ def boundary_condition_load_lc2(model_part_structure,boundary_condition_load_lc2
         """))
         condition_load_model_part_structure.ExecuteInitializeSolutionStep()
 
+
 # Define boundary conditions for load - loadcase 3 (lc3), load at single node
 def boundary_condition_load_lc3(model_part_structure,boundary_condition_load_lc3_model_part_structure,step,load_X,load_Y,load_Z):
     # Define nodes for loadcase 3 (lc3)
@@ -387,6 +407,74 @@ def boundary_condition_load_lc3(model_part_structure,boundary_condition_load_lc3
     for node in boundary_condition_load_lc3_model_part_structure.Nodes:
         condition_load_model_part_structure = boundary_condition_load_lc3_model_part_structure.CreateNewCondition("PointLoadCondition2D1N",step*10000000000+node.Id,[node.Id],model_part_structure.GetProperties()[1])
         condition_load_model_part_structure.SetValue(KratosMultiphysics.StructuralMechanicsApplication.POINT_LOAD, [load_X,load_Y,load_Z])
+
+
+# Define boundary conditions for load - loadcase 4 (lc4), uniform line load (e.g. self-weight)
+def boundary_condition_load_lc4(
+    model_part_structure,
+    boundary_condition_load_lc4_model_part_structure,
+    step,
+    load_X,
+    load_Y,
+    load_Z,
+):
+    """
+    Gleichmäßig verteilte Linienlast q_y [N/mm] entlang der Oberkante.
+    load_Y = q_y (Linienlast); wir erzeugen äquivalente Punktlasten in y-Richtung.
+    """
+
+    # q_y [N/mm] (negativ nach unten)
+    q_y = load_Y
+
+    # --- 1) Alle Knoten auf der Oberkante finden ---
+    nodes_all = list(model_part_structure.Nodes)
+    if not nodes_all:
+        return
+
+    y_max = max(node.Y for node in nodes_all)
+    tol = 1.0e-6 * max(1.0, abs(y_max))
+
+    # Knoten mit y ≈ y_max
+    top_nodes = [node for node in nodes_all if abs(node.Y - y_max) <= tol]
+    if len(top_nodes) < 2:
+        return
+
+    # nach x sortieren
+    top_nodes.sort(key=lambda node: node.X)
+
+    # ins SubModelPart aufnehmen (analog lc1–3)
+    boundary_condition_load_lc4_model_part_structure.AddNodes(
+        [node.Id for node in top_nodes]
+    )
+
+    # --- 2) Tributärlängen bestimmen ---
+    # wir nehmen gleichmäßige Elementlänge an:
+    dx = top_nodes[1].X - top_nodes[0].X
+
+    trib_lengths = []
+    for i in range(len(top_nodes)):
+        if i == 0 or i == len(top_nodes) - 1:
+            trib_lengths.append(0.5 * dx)  # Randknoten: halbe Länge
+        else:
+            trib_lengths.append(dx)        # Innenknoten: volle Länge
+
+    # --- 3) Für jeden Knoten eine Punktlast setzen ---
+    for node, L_i in zip(top_nodes, trib_lengths):
+        Fy = q_y * L_i  # [N/mm] * [mm] = [N]
+
+        condition_id = step * 10000000000 + node.Id
+        condition = boundary_condition_load_lc4_model_part_structure.CreateNewCondition(
+            "PointLoadCondition2D1N",
+            condition_id,
+            [node.Id],
+            model_part_structure.GetProperties()[1],  # Properties-ID wie bei lc1
+        )
+
+        condition.SetValue(
+            KratosMultiphysics.StructuralMechanicsApplication.POINT_LOAD,
+            [0.0, Fy, 0.0],
+        )
+
 
 'Solver stategy'
 # Not clear what the single function actual do and how they work -> Testing
@@ -441,23 +529,24 @@ def apply_solver(model_part_structure):
 
 'Output - VTK'
 def apply_output_vtk(model):
-    vtk_output_process = VtkOutputProcess(model,KratosMultiphysics.Parameters("""
+    vtk_output_process = VtkOutputProcess(model, KratosMultiphysics.Parameters("""
     {
-    "model_part_name"                    : "model_part_structure",
-    "output_control_type"                : "step",
-    "output_interval"                    : 1,
-    "file_format"                        : "ascii",
-    "output_precision"                   : 7,
-    "output_sub_model_parts"             : false,
-    "write_deformed_configuration"       : true,
-    "output_path"                        : "vtk_output_glulam_solid_2D",
-    "save_output_files_in_folder"        : false,
-    "nodal_solution_step_data_variables" : ["DISPLACEMENT","REACTION"],
-    "gauss_point_variables_extrapolated_to_nodes": ["PK2_STRESS_VECTOR"],
-    "gauss_point_variables_in_elements": ["PK2_STRESS_VECTOR"]  
+        "model_part_name"                    : "model_part_structure",
+        "output_control_type"                : "step",
+        "output_interval"                    : 1,
+        "file_format"                        : "ascii",
+        "output_precision"                   : 7,
+        "output_sub_model_parts"             : true,
+        "write_deformed_configuration"       : true,
+        "output_path"                        : "results/vtk/glulam_solid_2D",
+        "save_output_files_in_folder"        : true,
+        "nodal_solution_step_data_variables" : ["DISPLACEMENT","REACTION"],
+        "gauss_point_variables_extrapolated_to_nodes": ["PK2_STRESS_VECTOR"],
+        "gauss_point_variables_in_elements"  : ["PK2_STRESS_VECTOR"]
     }
     """))
     vtk_output_process.PrintOutput()
+
      
 'Output system response quantity (SRQ)'
 def apply_output_SRQ(model_part_structure):
@@ -524,33 +613,81 @@ load_min = load_max / end_step
 load_step = np.linspace(load_min, load_max, end_step)
 
 'Setup Model'
+
 # Model and Modelparts
-model, model_part_structure, boundary_condition_support_model_part_structure, boundary_condition_load_model_part_structure, boundary_condition_load_lc1_model_part_structure, boundary_condition_load_lc2_model_part_structure, boundary_condition_load_lc3_model_part_structure = model_modelpart()
+model, model_part_structure, \
+boundary_condition_support_model_part_structure, \
+boundary_condition_load_model_part_structure, \
+boundary_condition_load_lc1_model_part_structure, \
+boundary_condition_load_lc2_model_part_structure, \
+boundary_condition_load_lc3_model_part_structure, \
+boundary_condition_load_lc4_model_part_structure = model_modelpart()
+
 # Variables
 variables(model_part_structure)
+
 # Material and Constitutive Law'
 material(model_part_structure)
+
 # Geometry (Nodes and Elements) and DOFs
 geometry_DOF(model_part_structure,df_nodes,df_elements)
+
 # Boundary Condition - Support
 if boundary_condition_support == "single_span_beam":
     boundary_condition_support_single_span_beam(boundary_condition_support_model_part_structure)
 elif boundary_condition_support == "beam_compression_tension":
     boundary_condition_support_beam_compression_tension(boundary_condition_support_model_part_structure)
 'Preparation for output'
+
 # List for output
 list_load_deformation_curve = []
+
 'Start calculation'
 while step < end_step:
     # Updating step
     step += 1
+
     # Boundary Condition - Load
     if boundary_condition_load == "lc1":
-        boundary_condition_load_lc1(model_part_structure,boundary_condition_load_lc1_model_part_structure,load_application,step,0,load_min*step,0)
+        boundary_condition_load_lc1(
+            model_part_structure,
+            boundary_condition_load_lc1_model_part_structure,
+            load_application,
+            step,
+            0,
+            load_min * step,
+            0,
+        )
     elif boundary_condition_load == "lc2":
-        boundary_condition_load_lc2(model_part_structure,boundary_condition_load_lc2_model_part_structure,0,0,-100000/(n_element_y+1),0)
+        boundary_condition_load_lc2(
+            model_part_structure,
+            boundary_condition_load_lc2_model_part_structure,
+            0,
+            0,
+            -100000 / (n_element_y + 1),
+            0,
+        )
     elif boundary_condition_load == "lc3":
-        boundary_condition_load_lc3(model_part_structure,boundary_condition_load_lc3_model_part_structure,0,0,85000,0)
+        boundary_condition_load_lc3(
+            model_part_structure,
+            boundary_condition_load_lc3_model_part_structure,
+            0,
+            0,
+            85000,
+            0,
+        )
+    elif boundary_condition_load == "lc4":
+        # gleichmäßig verteilte Linienlast q_y = load_min * step
+        # bei end_step = 1 → q_y = max_value
+        boundary_condition_load_lc4(
+            model_part_structure,
+            boundary_condition_load_lc4_model_part_structure,
+            step,
+            0.0,
+            load_min * step,   # = q_y
+            0.0,
+        )
+ 
     # Solver stategy
     apply_solver(model_part_structure)
     model_part_structure.ProcessInfo[KratosMultiphysics.STEP] = step
