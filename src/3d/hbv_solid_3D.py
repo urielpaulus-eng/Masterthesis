@@ -1,6 +1,6 @@
 from __future__ import print_function, absolute_import, division    #makes KratosMultiphysics backward compatible with python 2.6 and 2.7
 
-from config_hbv import (
+from config_hbv_3d import (
     GEOMETRY,
     MATERIAL_TIMBER,
     MATERIAL_CONCRETE,
@@ -29,9 +29,9 @@ import pandas as pd
 import numpy as np
 
 '''Import functions'''
-from def_node_element_creator import define_nodes
-from def_node_element_creator import define_quadrilateralN4
-from def_plot import plot_data_2D
+from def_node_element_creator_3d import define_nodes
+from def_node_element_creator_3d import define_quadrilateralN4
+from def_plot_3d import plot_data_2D
 
 '''Glulam Beam with Solid 2D element'''
 
@@ -62,8 +62,19 @@ n_element_z = GEOMETRY["n_el_z"]
 
 
 'Dataframe with nodes and elements'
-df_nodes, df_nodes_xyz, df_nodes_number = define_nodes(l,b,h,n_element_x,n_element_y,n_element_z)
-df_elements, df_elements_number = define_quadrilateralN4(n_element_x,n_element_y,n_element_z)
+df_nodes, df_nodes_xyz, df_nodes_number = define_nodes(
+    GEOMETRY["l"],
+    GEOMETRY["b"],
+    GEOMETRY["h"],
+    GEOMETRY["n_el_x"],
+    GEOMETRY["n_el_y"],
+    GEOMETRY["n_el_z"],
+)
+df_elements, df_elements_number = define_quadrilateralN4(
+    GEOMETRY["n_el_x"],
+    GEOMETRY["n_el_y"],
+    GEOMETRY["n_el_z"],
+)
 
 
 ####################################################################################################
@@ -142,9 +153,41 @@ def material(model_part_structure):
     props_kerve.SetValue(KratosMultiphysics.POISSON_RATIO, MATERIAL_KERVE["nu"])
     props_kerve.SetValue(KratosMultiphysics.THICKNESS,     MATERIAL_KERVE["thickness"])
 
-    kerve_law = KratosMultiphysics.StructuralMechanicsApplication.LinearElasticPlaneStrain2DLaw()
+      # ===========
+    #  KERVE: 2D Damage-Gesetz (d+ / d-), nichtlinear
+    # ===========
+
+    # 1) Konstitutives Gesetz holen
+    kerve_law = KratosMultiphysics.KratosGlobals.GetConstitutiveLaw(
+        "SmallStrainDplusDminusDamageRankineRankine2D"
+    ).Clone()
     props_kerve.SetValue(KratosMultiphysics.CONSTITUTIVE_LAW, kerve_law)
 
+    # 2) Parameter für das Damage-Gesetz
+    #    (Werte sind erstmal nur Beispielwerte!! Später kalibrieren)
+
+    # Softening-Typ (0 = z.B. bilinear, je nach Version)
+    props_kerve.SetValue(ConstitutiveLawsApplication.SOFTENING_TYPE, 0)
+
+    # Härtungskurve (3 = oft "exponential" / "curve", je nach Doku)
+    props_kerve.SetValue(ConstitutiveLawsApplication.HARDENING_CURVE, 3)
+
+    # Zug- und Druck-"Festigkeiten" [N/mm^2]
+    props_kerve.SetValue(ConstitutiveLawsApplication.YIELD_STRESS_TENSION,  5.0)   # z.B. ft,quer
+    props_kerve.SetValue(ConstitutiveLawsApplication.YIELD_STRESS_COMPRESSION, 25.0)  # z.B. fc,quer
+
+    # Bruchenergien [N/mm] (sehr grobe Startwerte!)
+    props_kerve.SetValue(KratosMultiphysics.FRACTURE_ENERGY, 0.1)
+    props_kerve.SetValue(ConstitutiveLawsApplication.FRACTURE_ENERGY_COMPRESSION, 0.1)
+
+    # Optional: Explizite Damage-Kurve (erstmal auslassen)
+    # props_kerve.SetValue(ConstitutiveLawsApplication.STRESS_DAMAGE_CURVE,  [-40.0])
+    # props_kerve.SetValue(ConstitutiveLawsApplication.STRAIN_DAMAGE_CURVE,  [0.005])
+    # props_kerve.SetValue(ConstitutiveLawsApplication.DAMAGE_TENSION,       0.5)
+    
+    
+    
+    
     # Plastification Variant 1 (not working)
     # model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.DENSITY,0)
     # model_part_structure.GetProperties()[1].SetValue(KratosMultiphysics.YOUNG_MODULUS,14400)
@@ -495,7 +538,7 @@ def apply_solver(model_part_structure):
         "model_part_name"                      : "model_part_structure",
         "domain_size"                          : 2,
         "echo_level"                           : 2,
-        "analysis_type"                        : "linear",
+        "analysis_type"                        : "non_linear",
         "model_import_settings"                : {
             "input_type"     : "use_input_model_part",
             "input_filename" : "glulam_solid_2D/glulam_solid"
@@ -533,7 +576,7 @@ def apply_output_vtk(model):
         "output_precision"                   : 7,
         "output_sub_model_parts"             : true,
         "write_deformed_configuration"       : true,
-        "output_path"                        : "results/vtk/glulam_solid_2D",
+        "output_path"                        : "results/vtk/hbv_solid_3D",
         "save_output_files_in_folder"        : true,
         "nodal_solution_step_data_variables" : ["DISPLACEMENT","REACTION"],
         "gauss_point_variables_extrapolated_to_nodes": ["PK2_STRESS_VECTOR"],

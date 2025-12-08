@@ -40,6 +40,12 @@ MATERIAL_TIMBER = {
     "G": 900.0,
     "nu": 0.3,
     "thickness": 100.0,  # mm
+
+    # neue Einträge für J2-Plastizität:
+    "yield_stress":       3.0e6,   # Streckgrenze in [Pa] (anpassen!)
+    "H_iso":              1.0e8,   # isotrope Verfestigung [Pa]
+    "yield_stress_sat":   4.0e6,   # Sättigungs-Streckgrenze [Pa]
+    "hardening_exponent": 10.0     # Exponent für exp. Verfestigung
 }
 
 # Materialparameter Beton (Platzhalterwerte, kannst du später anpassen)
