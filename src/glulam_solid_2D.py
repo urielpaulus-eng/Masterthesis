@@ -71,7 +71,7 @@ df_elements, df_elements_number = define_quadrilateralN4(n_element_x,n_element_y
 ####################################################################################################
 
 'Model and Modelparts'
-def model_modelpart():
+def init_kratos_objects():
     model = KratosMultiphysics.Model()
     model_part_structure = model.CreateModelPart("model_part_structure")
     model_part_structure.SetBufferSize(2)
@@ -111,11 +111,6 @@ def variables(model_part_structure):
     model_part_structure.AddNodalSolutionStepVariable(KratosMultiphysics.VOLUME_ACCELERATION)
 
 def material(model_part_structure):
-    """Definiert die Material-Properties für Holz, Beton, Kerve.
-
-    Aktuell nutzen die Elemente noch NUR Properties[1] (Holz).
-    Beton und Kerve sind vorbereitet fürs spätere HBV-Modell.
-    """
 
     # --- Holz (Properties[1]) ---
     props_timber = model_part_structure.GetProperties()[1]
@@ -621,7 +616,7 @@ boundary_condition_load_model_part_structure, \
 boundary_condition_load_lc1_model_part_structure, \
 boundary_condition_load_lc2_model_part_structure, \
 boundary_condition_load_lc3_model_part_structure, \
-boundary_condition_load_lc4_model_part_structure = model_modelpart()
+boundary_condition_load_lc4_model_part_structure = init_kratos_objects()
 
 # Variables
 variables(model_part_structure)

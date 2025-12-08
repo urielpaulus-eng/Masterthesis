@@ -18,8 +18,8 @@ GEOMETRY = {
     "b_concrete": 80.0,  # Betondicke (oberer Teil) [mm]
 
       # Diskretisierung
-    "n_el_x": 72,
-    "n_el_y": 8,
+    "n_el_x": 98,
+    "n_el_y": 14,
     "n_el_z": 0,
 
     # Kervengeometrie
@@ -76,9 +76,9 @@ LOADCASE = {
     "case": "lc4",
 
     # hier interpretieren wir max_value als Linienlast q_y [N/mm]
-    # Beispiel: -0.03 N/mm entspricht -30 N/m (wenn mm als Einheit verwendet)
+    # Beispiel: -0.03 N/mm entspricht -30 N/m (wenn mm als Einheit verwendet) Faktor 1000
     "application": "force_controlled",  # für lc4 wird application nicht benutzt
-    "max_value": -900.0,                 # negativ = nach unten
+    "max_value": -900.0,                 # negativ = nach unten  900N/mm entspricht 900kN/m
 
     "n_steps": 1,  # am Anfang gerne 1 lassen
 }
