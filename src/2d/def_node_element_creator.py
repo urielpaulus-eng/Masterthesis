@@ -37,8 +37,20 @@ import pandas as pd  # Lade pandas Bibliothek (für Tabellen)
 # n_element_y = number of elements over width
 # n_element_z = number of elements over heigth
 
+
+
 def  define_nodes(l,b,h,n_element_x,n_element_y,n_element_z):  # def = Definiere Funktion mit Namen und Parametern
 
+
+    """This function creates all nodes in 3D (x, y, z), puts them into pandas DataFrames in different forms:
+
+    df_nodes: node id + coordinates,
+
+    df_nodes_xyz: only coordinates,
+
+    df_nodes_number: only node id.
+
+    """
     # x - layer
     list_nodes_x = []  # [] = Erstelle leere Liste
     n_nodes_x = n_element_x+1  # Rechne Anzahl Knoten: Elemente + 1
@@ -104,7 +116,7 @@ def  define_nodes(l,b,h,n_element_x,n_element_y,n_element_z):  # def = Definiere
             dict_nodes_y = {}
             dict_nodes_y.update({'layer_y': layer_y_2, 'y': y_2})
             list_nodes_y.append(dict_nodes_y)
-
+    
 
     # z - layer   
     list_nodes_z = []  # Erstelle leere Liste für z-Knoten

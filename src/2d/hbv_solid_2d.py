@@ -22,7 +22,7 @@ from KratosMultiphysics.StructuralMechanicsApplication.displacement_control_with
 from KratosMultiphysics.assign_vector_variable_process import AssignVectorVariableProcess
 
 
-from KratosMultiphysics import ConstitutiveLawsApplication
+from KratosMultiphysics import ConstitutiveLawsApplication as CLA
 
 # Stuff
 import pandas as pd
@@ -120,17 +120,26 @@ def material(model_part_structure):
     props_timber.SetValue(KratosMultiphysics.POISSON_RATIO, MATERIAL_TIMBER["nu"])
     props_timber.SetValue(KratosMultiphysics.THICKNESS,     MATERIAL_TIMBER["thickness"])
 
-    #   --- zusätzliche Parameter für J2-Plastizität --- Variabeln wurden über Kratos Datenbank geholt
-    props_timber.SetValue(KratosMultiphysics.KratosGlobals.GetVariable("YIELD_STRESS"),                         MATERIAL_TIMBER["yield_stress"])
-    props_timber.SetValue(KratosMultiphysics.KratosGlobals.GetVariable("ISOTROPIC_HARDENING_MODULUS"),          MATERIAL_TIMBER["H_iso"])
-    props_timber.SetValue(KratosMultiphysics.KratosGlobals.GetVariable("EXPONENTIAL_SATURATION_YIELD_STRESS"),  MATERIAL_TIMBER["yield_stress_sat"])
-    props_timber.SetValue(KratosMultiphysics.KratosGlobals.GetVariable("HARDENING_EXPONENT"),                   MATERIAL_TIMBER["hardening_exponent"])
+        # --- zusätzliche Parameter für J2-Plastizität (ALLE über KratosGlobals holen!) ---
+    var_yield = KratosMultiphysics.KratosGlobals.GetVariable("YIELD_STRESS")
+    var_iso   = KratosMultiphysics.KratosGlobals.GetVariable("ISOTROPIC_HARDENING_MODULUS")
+    var_sat   = KratosMultiphysics.KratosGlobals.GetVariable("EXPONENTIAL_SATURATION_YIELD_STRESS")
+    var_n     = KratosMultiphysics.KratosGlobals.GetVariable("HARDENING_EXPONENT")
 
-    # plastisches 2D-Gesetz (plane strain) holen
-    timber_law = KratosMultiphysics.KratosGlobals.GetConstitutiveLaw(
-    "SmallStrainJ2PlasticityPlaneStrain2DLaw"
-    ).Clone()
+    props_timber.SetValue(var_yield, MATERIAL_TIMBER["yield_stress"])
+    props_timber.SetValue(var_iso,   MATERIAL_TIMBER["H_iso"])
+    props_timber.SetValue(var_sat,   MATERIAL_TIMBER["yield_stress_sat"])
+    props_timber.SetValue(var_n,     MATERIAL_TIMBER["hardening_exponent"])
+
+    # --- plastisches 2D-Gesetz (plane strain) direkt aus CLA ---
+    timber_law = CLA.SmallStrainJ2PlasticityPlaneStrain2DLaw()
     props_timber.SetValue(KratosMultiphysics.CONSTITUTIVE_LAW, timber_law)
+
+    # Debug-Ausgabe: welches Gesetz hat Holz wirklich?
+    timber_law_print = model_part_structure.GetProperties()[1].GetValue(
+        KratosMultiphysics.CONSTITUTIVE_LAW
+    )
+    print("Timber constitutive law =", timber_law_print)
 
 
     """ # --- Holz (Properties[1]) --- alte Version linear-elastisch
@@ -322,8 +331,8 @@ def boundary_condition_support_single_span_beam(boundary_condition_support_model
     # Create SubModelPart "boundary_condition_moveable_support_model_part_structure"
     boundary_condition_moveable_support_model_part_structure = boundary_condition_support_model_part_structure.CreateSubModelPart("boundary_condition_moveable_support_model_part_structure") 
     # Define nodes for supports of single-span beam
-    boundary_condition_fixed_support_model_part_structure.AddNodes([1500250350])
-    boundary_condition_moveable_support_model_part_structure.AddNodes([1500250350+n_element_x*1000000])
+    boundary_condition_fixed_support_model_part_structure.AddNodes([1500248350])
+    boundary_condition_moveable_support_model_part_structure.AddNodes([1500248350+n_element_x*1000000])
     # Function for applying boundary condtions (fixed support) to nodes of a submodelpart
     KratosMultiphysics.VariableUtils().ApplyFixity(KratosMultiphysics.DISPLACEMENT_X, True, boundary_condition_fixed_support_model_part_structure.Nodes)
     KratosMultiphysics.VariableUtils().ApplyFixity(KratosMultiphysics.DISPLACEMENT_Y, True, boundary_condition_fixed_support_model_part_structure.Nodes)
@@ -371,7 +380,7 @@ def boundary_condition_load_lc1(model_part_structure,boundary_condition_load_lc1
             {{
             "model_part_name": "model_part_structure.boundary_condition_load_model_part_structure.boundary_condition_load_lc1_model_part_structure",
             "direction"       : "y",
-            "point_load_value": 1,
+            "point_load_value": 1000000,
             "prescribed_displacement_value" : "{load_Y}"
             }}
             """))
@@ -518,7 +527,7 @@ def apply_solver(model_part_structure):
         "displacement_absolute_tolerance"      : 1e-9,
         "residual_relative_tolerance"          : 0.0001,
         "residual_absolute_tolerance"          : 1e-9,
-        "max_iteration"                        : 10,
+        "max_iteration"                        : 30,
         "use_old_stiffness_in_first_iteration" : false,
         "rotation_dofs"                        : false,
         "volumetric_strain_dofs"               : false
@@ -529,6 +538,8 @@ def apply_solver(model_part_structure):
     # Start simulation
     simulation = StructuralMechanicsAnalysis(model, solve_parameters)
     simulation.Run()
+
+
 
 'Output - General'
 # General Output in Terminal
@@ -545,11 +556,11 @@ def apply_output_vtk(model):
         "output_precision"                   : 7,
         "output_sub_model_parts"             : true,
         "write_deformed_configuration"       : true,
-        "output_path"                        : "results/vtk/glulam_solid_2D",
+        "output_path"                        : "results/vtk/hbv_solid_2D",
         "save_output_files_in_folder"        : true,
         "nodal_solution_step_data_variables" : ["DISPLACEMENT","REACTION"],
-        "gauss_point_variables_extrapolated_to_nodes": ["PK2_STRESS_VECTOR", "EQUIVALENT_PLASTIC_STRAIN"],
-        "gauss_point_variables_in_elements"  : ["PK2_STRESS_VECTOR", "EQUIVALENT_PLASTIC_STRAIN"]
+        "gauss_point_variables_extrapolated_to_nodes": ["PK2_STRESS_VECTOR", "EQUIVALENT_PLASTIC_STRAIN","PLASTIC_STRAIN_VECTOR"],
+        "gauss_point_variables_in_elements"  : ["PK2_STRESS_VECTOR", "EQUIVALENT_PLASTIC_STRAIN", "PLASTIC_STRAIN_VECTOR"]
     }
     """))
     vtk_output_process.PrintOutput()
@@ -600,6 +611,8 @@ def apply_output_SRQ(model_part_structure):
         # print(f"node {node.Id}: {node.Has(KratosMultiphysics.PK2_STRESS_VECTOR)}: {node[KratosMultiphysics.PK2_STRESS_VECTOR]}")
     df_node_PK2_stress = pd.DataFrame(list_node_PK2_stress)
     return df_node_deformation, df_node_reaction, df_node_PK2_stress
+
+
 
 ####################################################################################################
 'Second part: Apply numerical model and start calculation'
@@ -698,10 +711,32 @@ while step < end_step:
     # Solver stategy
     apply_solver(model_part_structure)
     model_part_structure.ProcessInfo[KratosMultiphysics.STEP] = step
+
+  # === DEBUG: Plastische Dehnungen prüfen ============================
+    # 1) SubModelPart für Holz holen (den hast du in geometry_DOF erstellt)
+    timber_mp = model_part_structure.GetSubModelPart("TIMBER")
+
+    # 2) Erstes Holzelement nehmen und die plastische Dehnung an den Gausspunkten auslesen
+    for elem in timber_mp.Elements:
+        gp_eps_p = elem.CalculateOnIntegrationPoints(
+            CLA.EQUIVALENT_PLASTIC_STRAIN,
+            model_part_structure.ProcessInfo
+        )
+        # gp_eps_p ist eine Liste: ein Wert pro Integrationspunkt
+        print("STEP", step, "| Element", elem.Id,
+              "| EQUIVALENT_PLASTIC_STRAIN =", gp_eps_p)
+        break  # nur das erste Element ausgeben, sonst wird es zu viel Text
+
+
+
+
+
     # Ouput - VTK
     apply_output_vtk(model)
     # Output system response quantity (SRQ)
     df_node_deformation, df_node_reaction, df_node_PK2_stress = apply_output_SRQ(model_part_structure)
+    print("STEP", step, "| Max |sigma_x| im Modell:",
+          df_node_PK2_stress["stress_x"].abs().max())
     # Output - Load-Deformation-Curve
     if boundary_condition_support == "single_span_beam":
         node_id_mid_span = 1500250350+n_element_x/2*1000000
