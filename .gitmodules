@@ -1,0 +1,3 @@
+[submodule "Krato"]
+	path = Krato
+	url = https://github.com/KratosMultiphysics/Kratos.git
