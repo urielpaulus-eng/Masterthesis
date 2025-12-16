@@ -1,0 +1,64 @@
+{
+    "problem_data": {
+        "echo_level": 2,
+        "end_time": 1.0,
+        "parallel_type": "OpenMP",
+        "problem_name": "tcc_generated",
+        "start_time": 0.0
+    },
+    "solver_settings": {
+        "analysis_type": "non_linear",
+        "auxiliary_dofs_list": [],
+        "auxiliary_reaction_list": [],
+        "auxiliary_variables_list": [],
+        "buffer_size": 2,
+        "builder_and_solver_settings": {
+            "advanced_settings": {
+                "block_builder": true,
+                "diagonal_values_for_dirichlet_dofs": "use_max_diagonal",
+                "echo_level": 1,
+                "name": "block_builder_and_solver",
+                "silent_warnings": false
+            },
+            "type": "block"
+        },
+        "clear_storage": false,
+        "compute_reactions": true,
+        "computing_sub_model_part_name": "",
+        "convergence_criterion": "residual_criterion",
+        "displacement_absolute_tolerance": 1e-09,
+        "displacement_control": false,
+        "displacement_relative_tolerance": 0.0001,
+        "domain_size": 2,
+        "echo_level": 2,
+        "linear_solver_settings": {},
+        "material_import_settings": {
+            "materials_filename": ""
+        },
+        "max_iteration": 30,
+        "model_import_settings": {
+            "input_filename": "tcc_generated",
+            "input_type": "use_input_model_part"
+        },
+        "model_part_name": "model_part_structure",
+        "move_mesh_flag": true,
+        "multi_point_constraints_used": true,
+        "pressure_dofs": false,
+        "reform_dofs_at_each_step": false,
+        "residual_absolute_tolerance": 1e-09,
+        "residual_relative_tolerance": 0.0001,
+        "rotation_dofs": false,
+        "solver_type": "Static",
+        "solving_strategy_settings": {
+            "advanced_settings": {},
+            "type": "newton_raphson"
+        },
+        "strain_dofs": false,
+        "time_stepping": {
+            "time_step": 1.0
+        },
+        "use_old_stiffness_in_first_iteration": false,
+        "use_orthogonal_subscales": false,
+        "volumetric_strain_dofs": false
+    }
+}

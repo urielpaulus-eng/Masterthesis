@@ -7,7 +7,7 @@ solver_tcc = {
         "solver_type": "Static",
         "analysis_type": "non_linear",
         "domain_size": 2,
-        "echo_level": 2,
+        "echo_level": 0,
 
         "time_step": 1.0,
         "start_time": 0.0,

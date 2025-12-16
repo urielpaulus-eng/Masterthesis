@@ -48,7 +48,7 @@ wood = {
         "saturation_yield_stress":   100,   # Sättigungs-Streckgrenze [Pa]
         "hardening_exponent": 10     # Exponent für exp. Verfestigung
     }
-
+    
 }
 
 
